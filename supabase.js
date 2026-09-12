@@ -50,42 +50,27 @@ function makeOrderNumber() {
 async function createStoreOrder({ customerName, customerPhone, fulfillmentMethod, items }) {
   if (!customerName || !items?.length) throw new Error('ข้อมูลคำสั่งซื้อไม่ครบ')
   const sb = await getSupabase()
-  const productIds = items.map(i => i.product_id)
-  const { data: products, error: productsError } = await sb
-    .from('products')
-    .select('id,name,price,stock,is_active')
-    .in('id', productIds)
-  if (productsError) throw productsError
 
-  const byId = new Map((products || []).map(p => [p.id, p]))
-  let total = 0
-  const normalized = items.map(item => {
-    const p = byId.get(item.product_id)
-    if (!p || !p.is_active) throw new Error('มีสินค้าที่ไม่พร้อมจำหน่าย')
-    if (item.quantity < 1 || item.quantity > p.stock) throw new Error(`สินค้า ${p.name} มีจำนวนไม่เพียงพอ`)
-    total += Number(p.price) * Number(item.quantity)
-    return { product_id: p.id, product_name: p.name, price: p.price, quantity: item.quantity }
+  // The database function performs validation, row locking, stock decrement,
+  // order creation and order-item creation in ONE PostgreSQL transaction.
+  // This prevents overselling when multiple customers order simultaneously.
+  const { data, error } = await sb.rpc('create_store_order_atomic', {
+    p_customer_name: customerName,
+    p_customer_phone: customerPhone || null,
+    p_fulfillment_method: fulfillmentMethod || 'รับสินค้าที่โรงเรียน',
+    p_items: items.map(item => ({
+      product_id: item.product_id,
+      quantity: Number(item.quantity)
+    }))
   })
 
-  const { data: order, error: orderError } = await sb
-    .from('orders')
-    .insert({
-      order_number: makeOrderNumber(),
-      customer_name: customerName,
-      customer_phone: customerPhone || null,
-      fulfillment_method: fulfillmentMethod || 'รับสินค้าที่โรงเรียน',
-      total_amount: total,
-      status: 'pending'
-    })
-    .select('id,order_number,total_amount,status,created_at')
-    .single()
-  if (orderError) throw orderError
+  if (error) {
+    // Keep the customer-facing error concise while preserving the database message.
+    throw new Error(error.message || 'ไม่สามารถสร้างคำสั่งซื้อได้')
+  }
 
-  const { error: itemsError } = await sb
-    .from('order_items')
-    .insert(normalized.map(i => ({ ...i, order_id: order.id })))
-  if (itemsError) throw itemsError
-
+  const order = Array.isArray(data) ? data[0] : data
+  if (!order) throw new Error('ระบบไม่พบข้อมูลคำสั่งซื้อหลังบันทึก')
   return order
 }
 
