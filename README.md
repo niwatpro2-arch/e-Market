@@ -2,37 +2,47 @@
 
 ระบบร้านค้าออนไลน์สำหรับโรงเรียนบ้านหนองไม้งาม 2
 
-## สถานะปัจจุบัน
-- หน้าร้าน Responsive + ฟอนต์ Kanit
+## พร้อมใช้งานจริง
+- หน้าร้าน Responsive + ฟอนต์ Kanit + ธีมส้ม
 - ใช้ Supabase Database จริง
 - โหลดสินค้าและหมวดหมู่จากฐานข้อมูล
-- รถเข็นเก็บในเบราว์เซอร์ แต่คำสั่งซื้อถูกบันทึกลง Supabase จริง
-- ตรวจสอบ stock และราคาจากฐานข้อมูลก่อนสร้างคำสั่งซื้อ
-- สร้างเลขคำสั่งซื้อรูปแบบ `NG2-YYYYMMDD-XXXX`
-- หน้าติดตามคำสั่งซื้อ `tracking.html` อ่านสถานะจาก Supabase จริง
-- หลังบ้าน `admin-supabase.html` ใช้ Supabase Auth และตรวจ role `admin`
-- ผู้ดูแลสามารถเปลี่ยนสถานะคำสั่งซื้อได้
+- รถเข็นทำงานในเบราว์เซอร์ และคำสั่งซื้อถูกบันทึกลงฐานข้อมูลจริง
+- ตัดสต็อกแบบ Atomic Transaction ป้องกัน overselling เมื่อหลายคนสั่งพร้อมกัน
+- ตรวจสอบราคา/สต็อกใน PostgreSQL ก่อนบันทึกคำสั่งซื้อ
+- หลังบ้านใช้ Supabase Auth และ `profiles.role = admin`
+- Dashboard ยอดขายและออเดอร์
+- จัดการคำสั่งซื้อและเปลี่ยนสถานะ
+- จัดการสินค้า เพิ่ม/แก้ไข ราคา สต็อก เปิด/ปิดขาย
+- จัดการหมวดหมู่สินค้า
+- อัปโหลดรูปสินค้าเข้า Supabase Storage (`product-images`)
+- หน้าติดตามออเดอร์ยืนยันด้วยเลขออเดอร์ + เบอร์โทรศัพท์ เพื่อไม่เปิดเผยข้อมูลออเดอร์จากการเดาเลขอย่างเดียว
+
+## หน้าใช้งาน
+- `index.html` → จุดเข้าเว็บร้านค้า
+- `shop-supabase.html` → หน้าร้านที่เชื่อมฐานข้อมูลจริง
+- `tracking.html` → ติดตามออเดอร์
+- `admin-supabase.html` → ระบบหลังบ้าน
 
 ## Supabase
 Project ref: `udolsoroxlgyntlcntqp`
 
-ตารางที่ใช้งาน:
+ตาราง:
 - `categories`
 - `products`
 - `profiles`
 - `orders`
 - `order_items`
 
-เปิด RLS ครบทุกตารางใน `public` และใช้ publishable key ฝั่ง browser เท่านั้น ห้ามใส่ secret/service_role key ใน GitHub
+Edge Function:
+- `track-order` → ตรวจเลขออเดอร์ร่วมกับเบอร์โทรศัพท์ก่อนส่งข้อมูลกลับ
 
-## หน้าใช้งาน
-- `index.html` → จุดเข้าเว็บร้านค้า และเปิด storefront ที่เชื่อม Supabase
-- `shop-supabase.html` → หน้าร้านที่เชื่อมฐานข้อมูลจริง
-- `tracking.html` → ติดตามออเดอร์
-- `admin-supabase.html` → หลังบ้านผู้ดูแล
+Storage:
+- `product-images` → รูปสินค้า ขนาดสูงสุด 5MB รองรับ JPG/PNG/WebP
 
-## การเป็นผู้ดูแลระบบ
-ต้องสร้างผู้ใช้ผ่าน Supabase Auth ก่อน และกำหนด `profiles.role` ของผู้ใช้นั้นเป็น `admin` เพื่อให้หน้า `admin-supabase.html` ผ่านการตรวจสิทธิ์
+เปิด RLS สำหรับข้อมูลใน `public` และใช้ publishable key ฝั่ง browser เท่านั้น ห้ามใส่ secret/service_role key ใน GitHub
+
+## ผู้ดูแลระบบ
+บัญชีผู้ดูแลต้องสร้างผ่าน Supabase Auth และมีแถวใน `profiles` ที่ `role = 'admin'`
 
 ## ความปลอดภัย
 ห้าม commit:
@@ -41,9 +51,8 @@ Project ref: `udolsoroxlgyntlcntqp`
 - database password
 - access token หรือ credentials ใด ๆ
 
-## การพัฒนาต่อ
-1. จัดการสินค้า/หมวดหมู่จากหลังบ้าน
-2. ตัดสต็อกแบบ atomic transaction เมื่อสั่งซื้อ
-3. Dashboard ยอดขาย
-4. แจ้งเตือนคำสั่งซื้อใหม่
-5. QR Payment และตรวจสอบการชำระเงิน
+## งานต่อยอดที่แนะนำ
+1. แจ้งเตือนออเดอร์ใหม่ให้ผู้ดูแล
+2. QR Payment และระบบยืนยันการชำระเงิน
+3. รายงานยอดขายรายวัน/เดือน และ export CSV
+4. ระบบสมาชิกสำหรับนักเรียน/ผู้ปกครอง
